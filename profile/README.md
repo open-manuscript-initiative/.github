@@ -1,7 +1,7 @@
 # Open Manuscript Initiative
 
 <p align="center">
-  <img src="[.github/main/assets/omi-logo-light.png]" width="640" alt="Open Manuscript Initiative">
+  <img src=".github/main/assets/omi-logo-light.png" width="640" alt="Open Manuscript Initiative">
 </p>
 
 <h3 align="center">
