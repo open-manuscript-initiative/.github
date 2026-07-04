@@ -34,15 +34,12 @@ Instead of formatting documents for individual publishers, OMI enables researche
 ## Explore OMI
 
 🌐 **Website**
-
 https://openmanuscript.org
 
 📖 **Documentation**
-
 https://openmanuscript.org/docs
 
 💻 **Main Repository**
-
 https://github.com/open-manuscript-initiative/omi
 
 ---
