@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/open-manuscript-initiative/omi/main/branding/omi-logo-dark.png" width="640" alt="Open Manuscript Initiative">
+  <img src="https://raw.githubusercontent.com/open-manuscript-initiative/omi/main/branding/omi-logo-dark.png" width="560" alt="Open Manuscript Initiative">
 </p>
 
 <h3 align="center">
