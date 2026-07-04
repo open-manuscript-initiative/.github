@@ -61,15 +61,3 @@ If you are interested in the future of scholarly communication, we invite you to
 ---
 
 ## License
-
-OMI is an open-source initiative released under the MIT License.
-.github/
-├── profile/
-│   └── README.md
-├── SUPPORT.md
-├── SECURITY.md
-├── FUNDING.yml
-├── CODEOWNERS
-├── ISSUE_TEMPLATE/
-├── PULL_REQUEST_TEMPLATE.md
-└── DISCUSSION_TEMPLATE/
