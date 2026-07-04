@@ -1,7 +1,7 @@
 # Open Manuscript Initiative
 
 <p align="center">
-  <img src="https://openmanuscript.org/img/omi-logo-light.svg" width="640" alt="Open Manuscript Initiative">
+  <img src="../assets/omi-logo-light.svg" width="640">
 </p>
 
 <h3 align="center">
