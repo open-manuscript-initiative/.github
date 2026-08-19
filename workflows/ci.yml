@@ -1,4 +1,4 @@
-name: OMI Studio CI
+name: OMI Studio CI/CD
 
 on:
   push:
@@ -10,14 +10,15 @@ on:
 
 permissions:
   contents: read
+  deployments: write
 
 concurrency:
-  group: omi-studio-ci-${{ github.ref }}
+  group: omi-studio-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build and verify
+    name: Build
     runs-on: ubuntu-latest
 
     steps:
@@ -27,11 +28,127 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript and production build
+      - name: Compile PO locales
+        run: npm run i18n:po:compile
+
+      - name: Validate locale parity
+        run: npm run i18n:validate-json
+
+      - name: Audit PO translation completeness
+        run: npm run i18n:po:audit
+
+      - name: Verify generated runtime locales
+        run: node scripts/verify-generated-runtime-locales.mjs
+
+      - name: Run tests
+        run: npm test
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://prisma:prisma@localhost:5432/omi_build
+        run: npm run prisma:generate
+
+      - name: Typecheck server API
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://prisma:prisma@localhost:5432/omi_build
+        run: npm run typecheck
+
+      - name: Read package version
+        id: package
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Export build variables
+        shell: bash
+        run: |
+          echo "VITE_APP_VERSION=${{ steps.package.outputs.version }}" >> "$GITHUB_ENV"
+          echo "VITE_BUILD_NUMBER=${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "VITE_COMMIT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "VITE_BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+
+      - name: Build
         run: npm run build
+
+  deploy:
+    name: Deploy to Production
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: https://studio.openmanuscript.org
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: 85.215.185.85
+          port: 22
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            export PATH="/opt/plesk/node/24/bin:$PATH"
+
+            cd /var/www/vhosts/openmanuscript.org/studio/repository
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            APP_VERSION="$(node -p "require('./package.json').version")"
+            BUILD_NUMBER="${{ github.run_number }}"
+            COMMIT_SHA="${{ github.sha }}"
+            COMMIT_SHORT="${COMMIT_SHA:0:7}"
+            BUILD_DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
+
+            export VITE_APP_VERSION="$APP_VERSION"
+            export VITE_BUILD_NUMBER="$BUILD_NUMBER"
+            export VITE_COMMIT_SHA="$COMMIT_SHORT"
+            export VITE_BUILD_DATE="$BUILD_DATE"
+
+            npm ci
+            npm run i18n:po:compile
+            npm run i18n:validate-json
+            npm run i18n:po:audit
+            npm test
+            npm run build
+
+            cd server
+
+            npm ci
+            npm run prisma:generate
+            npm run build
+
+            cd ..
+
+            rsync -a --delete \
+              dist/ \
+              /var/www/vhosts/openmanuscript.org/studio/httpdocs/
+
+            sudo -n /usr/bin/systemctl restart omi-studio-api.service
+
+            sleep 2
+
+            if /usr/bin/systemctl is-active --quiet omi-studio-api.service; then
+              echo "OMI Studio API is active."
+            else
+              echo "OMI Studio API failed to start."
+              /usr/bin/systemctl --no-pager --full status omi-studio-api.service || true
+              exit 1
+            fi
