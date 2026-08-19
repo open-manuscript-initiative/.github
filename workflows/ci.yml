@@ -56,7 +56,7 @@ jobs:
       - name: Generate Prisma client
         working-directory: server
         env:
-          DATABASE_URL: postgresql://prisma:prisma@localhost:5432/omi_build
+          DATABASE_URL: postgresql://omi_ci:omi_ci@localhost:5432/omi_ci
         run: npm run prisma:generate
 
       - name: Typecheck server API
