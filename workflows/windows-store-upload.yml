@@ -1,0 +1,81 @@
+name: Windows Store - Upload draft
+
+on:
+  workflow_run:
+    workflows:
+      - Windows MSIX candidates (Microsoft Store)
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: microsoft-store-draft
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.event == 'workflow_dispatch' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
+
+    runs-on: windows-latest
+    environment: microsoft-store-draft
+
+    steps:
+      - name: Download approved MSIX artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: omi-studio-windows-msix-store-unsigned
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: msix
+
+      - name: Configure Microsoft Store CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.4
+
+      - name: Upload draft to Partner Center
+        shell: pwsh
+        env:
+          TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          PRODUCT_ID: ${{ vars.MS_STORE_PRODUCT_ID }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $package = Join-Path $PWD "msix/Open-Manuscript-Studio-Windows-x64.msix"
+
+          if (-not (Test-Path $package)) {
+            throw "MSIX package not found."
+          }
+
+          if (-not $env:PRODUCT_ID) {
+            throw "Store Product ID is missing."
+          }
+
+          Get-FileHash $package -Algorithm SHA256
+
+          msstore reconfigure `
+            --tenantId $env:TENANT_ID `
+            --sellerId $env:SELLER_ID `
+            --clientId $env:CLIENT_ID `
+            --clientSecret $env:CLIENT_SECRET
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Store authentication failed."
+          }
+
+          msstore publish "$package" `
+            --appId $env:PRODUCT_ID `
+            --noCommit
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Store draft upload failed."
+          }
